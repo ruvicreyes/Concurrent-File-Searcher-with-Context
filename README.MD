@@ -1,8 +1,8 @@
 Concurrent File Searcher with Context
 
-In this project, you'll build a program that searches for files with a specific name or content in a given directory and its subdirectories concurrently. You'll use Goroutines for concurrent execution, channels for communication between Goroutines, a buffer to limit the number of concurrent file searchers, select to handle timeouts or cancellations, and a mutex to protect shared data structures.
+build a program that searches for files with a specific name or content in a given directory and its subdirectories concurrently. You'll use Goroutines for concurrent execution, channels for communication between Goroutines, a buffer to limit the number of concurrent file searchers, select to handle timeouts or cancellations, and a mutex to protect shared data structures.
 
-Here's an outline of how the project can be structured:
+outline of how the project can be structured:
 
 Input Handling: The program should accept input from the user, such as the directory to search, the file name or content to search for, and any search options (e.g., case sensitivity, file extensions to include/exclude).
 
@@ -16,4 +16,4 @@ Mutex: Use a mutex to protect shared data structures, such as a map or slice use
 
 Output Display: Once all file searches are complete, display the search results to the user in a clear and organized manner. This could include printing the paths of matching files, along with any additional information (e.g., file size, last modified timestamp).
 
-By working on this project, you'll get hands-on experience with concurrent programming concepts in Go, including Goroutines, channels, buffer, select, mutex, and context. You'll also gain practical experience in building concurrent applications that can efficiently handle concurrent tasks and gracefully handle timeouts or cancellations.
+hands-on experience with concurrent programming concepts in Go, including Goroutines, channels, buffer, select, mutex, and context. You'll also gain practical experience in building concurrent applications that can efficiently handle concurrent tasks and gracefully handle timeouts or cancellations.
