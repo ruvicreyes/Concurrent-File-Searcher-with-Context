@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-func getSubdirectories(mainDir string) []string{
-	
+func getSubdirectories(mainDir string) []string {
+
 	// Open the directory
 	d, err := os.Open(mainDir)
 	if err != nil {
@@ -24,9 +24,9 @@ func getSubdirectories(mainDir string) []string{
 	return infos
 
 }
-func fileSearcher(segments... string)(string, error){
+func fileSearcher(filename string) (string, error) {
 
-	//this will determine the path of read 
+	//this will determine the path of read
 	home, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)
@@ -43,7 +43,6 @@ func fileSearcher(segments... string)(string, error){
 
 	return "", err
 
-	
 }
 
 func getinput() (filename string, err error) {
@@ -51,9 +50,9 @@ func getinput() (filename string, err error) {
 
 	fmt.Println("Enter filename:")
 	_, err = fmt.Scanln(&input)
-	input = strings.ToUpper(input) 
+	input = strings.ToUpper(input)
 	if err != nil {
-		return 
+		return
 	}
 
 	return input, err
@@ -68,7 +67,7 @@ func main() {
 
 	// Concurrent File Search
 	list, err := fileSearcher(filename)
-	if err!=nil{
+	if err != nil {
 		panic(err)
 	}
 	fmt.Println(list)
