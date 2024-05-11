@@ -1,23 +1,77 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
-func getinput() (dir, filename string, err error) {
+func getSubdirectories(mainDir string) []string{
+	
+	// Open the directory
+	d, err := os.Open(mainDir)
+	if err != nil {
+		panic(err)
+	}
+	defer d.Close()
 
-	return dir, filename, nil
+	// Read the directory contents
+	infos, err := d.Readdirnames(-1)
+	if err != nil {
+		panic(err)
+	}
+	return infos
+
+}
+func fileSearcher(segments... string)(string, error){
+
+	//this will determine the path of read 
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	mainDir := filepath.Join(home, "go-concurrent")
+	//get subdirectories
+	subsDir := getSubdirectories(mainDir)
+
+	// Iterate over the directory contents
+	for _, info := range subsDir {
+		// Check if the entry is a directory
+		fmt.Println("Subdirectory:", info)
+	}
+
+	return "", err
+
+	
+}
+
+func getinput() (filename string, err error) {
+	var input string
+
+	fmt.Println("Enter filename:")
+	_, err = fmt.Scanln(&input)
+	input = strings.ToUpper(input) 
+	if err != nil {
+		return 
+	}
+
+	return input, err
 }
 
 func main() {
 	//input Handling
-	dir, filename, err := getinput()
+	filename, err := getinput()
 	if err != nil {
-		panic("wew")
+		panic("Error in input")
 	}
 
-	log.Println(dir)
-	log.Println(filename)
+	// Concurrent File Search
+	list, err := fileSearcher(filename)
+	if err!=nil{
+		panic(err)
+	}
+	fmt.Println(list)
 
 }
 
