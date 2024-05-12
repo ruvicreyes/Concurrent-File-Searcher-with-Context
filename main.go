@@ -2,12 +2,42 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
-func getSubdirectories(mainDir string) []string {
+type model struct{}
+
+func (m model) fileSearch(subDir string, ch chan string, input string) {
+
+	// Open the directory
+	d, err := os.Open(subDir)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer d.Close()
+
+	// Read the directory contents
+	files, err := d.Readdir(-1)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Send each file name through the channel
+	for _, file := range files {
+		// Check if the file is a regular file
+		if file.Mode().IsRegular() {
+			if strings.ToUpper(file.Name()) == input {
+				ch <- "Dir of:" + subDir + "\n" + "Items Found: " + file.Name()
+			}
+		}
+	}
+
+}
+func (m model) getSubdirectories(mainDir string) []fs.FileInfo {
 
 	// Open the directory
 	d, err := os.Open(mainDir)
@@ -17,35 +47,44 @@ func getSubdirectories(mainDir string) []string {
 	defer d.Close()
 
 	// Read the directory contents
-	infos, err := d.Readdirnames(-1)
+	infos, err := d.Readdir(-1)
 	if err != nil {
 		panic(err)
 	}
 	return infos
 
 }
-func fileSearcher(filename string) (string, error) {
+
+func (m model) fileSearcher(filename string) {
+
+	//Create a channel for list of files
+	resultChannel := make(chan string, 3)
 
 	//this will determine the path of read
 	home, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)
 	}
+	//get Main Directory
 	mainDir := filepath.Join(home, "go-concurrent")
 	//get subdirectories
-	subsDir := getSubdirectories(mainDir)
+	subsDir := m.getSubdirectories(mainDir)
 
-	// Iterate over the directory contents
-	for _, info := range subsDir {
-		// Check if the entry is a directory
-		fmt.Println("Subdirectory:", info)
-	}
+	go func() {
+		for _, sub := range subsDir {
+			if sub.IsDir() {
+				m.fileSearch(filepath.Join(home, "go-concurrent", sub.Name()), resultChannel, filename)
+			}
+		}
+		//signal the channel the sending data is done
+		close(resultChannel)
+	}()
 
-	return "", err
-
+	//view results
+	go m.view(resultChannel)
 }
 
-func getinput() (filename string, err error) {
+func (m model) getinput() (filename string, err error) {
 	var input string
 
 	fmt.Println("Enter filename:")
@@ -58,19 +97,25 @@ func getinput() (filename string, err error) {
 	return input, err
 }
 
+func (m model) view(resultChannel <-chan string) {
+	for result := range resultChannel {
+		fmt.Println(result)
+	}
+}
+
 func main() {
+	//initialize the model
+	m := model{}
+
 	//input Handling
-	filename, err := getinput()
+	filename, err := m.getinput()
 	if err != nil {
 		panic("Error in input")
 	}
-
 	// Concurrent File Search
-	list, err := fileSearcher(filename)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(list)
+	m.fileSearcher(filename)
+
+	time.Sleep(3 * time.Second)
 
 }
 
