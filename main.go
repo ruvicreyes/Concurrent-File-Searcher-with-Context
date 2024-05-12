@@ -120,6 +120,7 @@ func main() {
 }
 
 // to Add Buffer Channel
+//Each Goroutine should traverse a directory and its subdirectories,
 
 /* Concurrent File Searcher with Context
 
