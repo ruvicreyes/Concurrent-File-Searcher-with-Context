@@ -119,6 +119,8 @@ func main() {
 
 }
 
+// to Add Buffer Channel
+
 /* Concurrent File Searcher with Context
 
 In this project, you'll build a program that searches for files with a specific name or content in a given directory and its subdirectories concurrently. You'll use Goroutines for concurrent execution, channels for communication between Goroutines, a buffer to limit the number of concurrent file searchers, select to handle timeouts or cancellations, and a mutex to protect shared data structures.
