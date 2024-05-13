@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,48 +11,98 @@ import (
 
 type model struct{}
 
-func (m model) fileSearch(subDir string, ch chan string, input string) {
-
-	// Open the directory
-	d, err := os.Open(subDir)
+func (m model) getHome() string {
+	//this will determine the path of read
+	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println(err)
-	}
-	defer d.Close()
-
-	// Read the directory contents
-	files, err := d.Readdir(-1)
-	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 
-	// Send each file name through the channel
-	for _, file := range files {
-		// Check if the file is a regular file
-		if file.Mode().IsRegular() {
-			if strings.ToUpper(file.Name()) == input {
-				ch <- "Dir of:" + subDir + "\n" + "Items Found: " + file.Name()
+	//get Main Directory
+	main := filepath.Join(home, "go-concurrent")
+
+	return main
+}
+
+func (m model) viewer(filesChan <-chan string, ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				fmt.Println("Context canceled")
+				return
+
+			default:
+				fmt.Println("No file")
+				for a := range filesChan {
+					fmt.Println(a)
+				}
 			}
 		}
-	}
+	}()
 
 }
-func (m model) getSubdirectories(mainDir string) []fs.FileInfo {
 
-	// Open the directory
-	d, err := os.Open(mainDir)
-	if err != nil {
-		panic(err)
-	}
-	defer d.Close()
+func (m model) files(subDir <-chan string, input string) <-chan string {
+	out := make(chan string)
 
-	// Read the directory contents
-	infos, err := d.Readdir(-1)
-	if err != nil {
-		panic(err)
-	}
-	return infos
+	go func() {
+		for s := range subDir {
+			// Open the subDirectory
+			d, err := os.Open(s)
+			if err != nil {
+				fmt.Println(err)
+			}
+			defer d.Close()
 
+			// Read the directory contents
+			files, err := d.Readdir(-1)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			// Send each file name through the channel
+			for _, file := range files {
+				// Check if the file is a regular file
+				if file.Mode().IsRegular() {
+					if strings.ToUpper(file.Name()) == input {
+						out <- "Dir of:" + s + "\n" + "Items Found: " + file.Name()
+					}
+				}
+			}
+		}
+		close(out)
+	}()
+
+	return out
+}
+
+func (m model) subDir(mainDir string) <-chan string {
+	out := make(chan string)
+
+	go func() {
+		// Open the directory
+		d, err := os.Open(mainDir)
+		if err != nil {
+			panic(err)
+		}
+		defer d.Close()
+
+		// Read the directory contents
+		infos, err := d.Readdir(-1)
+		if err != nil {
+			panic(err)
+		}
+		for _, sub := range infos {
+			//check if the sub is a directory
+			if sub.IsDir() {
+				out <- filepath.Join(mainDir, sub.Name())
+			}
+		}
+		close(out)
+	}()
+
+	return out
 }
 
 func (m model) fileSearcher(filename string) {
@@ -61,47 +110,19 @@ func (m model) fileSearcher(filename string) {
 	// Create a context with cancellation capability
 	ctx, cancel := context.WithCancel(context.Background())
 
-	//Create a channel for list of files
-	resultChannel := make(chan string, 3)
+	//get mainDir
+	main := m.getHome()
 
-	//this will determine the path of read
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic(err)
-	}
-	//get Main Directory
-	mainDir := filepath.Join(home, "go-concurrent")
 	//get subdirectories
-	subsDir := m.getSubdirectories(mainDir)
+	subsDirChannel := m.subDir(main)
 
-	go func(ctx context.Context) {
-		fmt.Println("Searching......")
-		for _, sub := range subsDir {
-			select {
-			case <-ctx.Done():
-				fmt.Println("Task is canceled")
-				return
-			default:
-				// Simulate work
-				if sub.IsDir() {
-					m.fileSearch(filepath.Join(home, "go-concurrent", sub.Name()), resultChannel, filename)
-				}
-			}
-		}
-		//signal the channel the sending data is done
-		close(resultChannel)
-	}(ctx)
-	// Cancel the task after 2 seconds
+	//Create a channel for list of files
+	filesChannel := m.files(subsDirChannel, filename)
+
+	m.viewer(filesChannel, ctx)
 	time.Sleep(1 * time.Second)
 	cancel()
 
-	//view results
-	go m.view(resultChannel, ctx)
-
-	//time for printing result
-	time.Sleep(1 * time.Second)
-	cancel()
-	
 }
 
 func (m model) getinput() (filename string, err error) {
@@ -115,27 +136,6 @@ func (m model) getinput() (filename string, err error) {
 	}
 
 	return input, err
-}
-
-func (m model) view(resultChannel <-chan string, ctx context.Context) {
-	
-	select {
-		case <-resultChannel:
-			for result := range resultChannel {
-			fmt.Println(result)
-			}
-
-		case <-ctx.Done():
-			fmt.Println("Task is canceled")
-			return
-
-		default:
-			fmt.Println("Channel is empty, no value to receive")
-	}
-	
-	//I need to print out if ch is empty
-	//know if channel needs to be looped or not
-	
 }
 
 func main() {
