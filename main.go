@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 type model struct{}
@@ -25,21 +24,23 @@ func (m model) getHome() string {
 }
 
 func (m model) viewer(filesChan <-chan string, ctx context.Context) {
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				fmt.Println("Context canceled")
-				return
 
-			default:
-				fmt.Println("No file")
-				for a := range filesChan {
-					fmt.Println(a)
-				}
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("Context canceled, exiting")
+			return
+		//check if there is still item in channel
+		case val, ok := <-filesChan:
+			if !ok {
+				fmt.Println("No more file found")
+				return
+			} else {
+				fmt.Println(val)
 			}
 		}
-	}()
+	}
+
 
 }
 
@@ -109,6 +110,7 @@ func (m model) fileSearcher(filename string) {
 
 	// Create a context with cancellation capability
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() //to endure cancel() if main exits
 
 	//get mainDir
 	main := m.getHome()
@@ -119,9 +121,8 @@ func (m model) fileSearcher(filename string) {
 	//Create a channel for list of files
 	filesChannel := m.files(subsDirChannel, filename)
 
+	//view Files
 	m.viewer(filesChannel, ctx)
-	time.Sleep(1 * time.Second)
-	cancel()
 
 }
 
@@ -151,6 +152,10 @@ func main() {
 	m.fileSearcher(filename)
 
 }
+
+//review Buffered channels if possible to implement
+//Mutex: Use a mutex to protect shared data structures, such as a map or slice used to store search results.
+
 
 /* Concurrent File Searcher with Context
 
