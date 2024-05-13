@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -57,6 +58,9 @@ func (m model) getSubdirectories(mainDir string) []fs.FileInfo {
 
 func (m model) fileSearcher(filename string) {
 
+	// Create a context with cancellation capability
+	ctx, cancel := context.WithCancel(context.Background())
+
 	//Create a channel for list of files
 	resultChannel := make(chan string, 3)
 
@@ -70,18 +74,34 @@ func (m model) fileSearcher(filename string) {
 	//get subdirectories
 	subsDir := m.getSubdirectories(mainDir)
 
-	go func() {
+	go func(ctx context.Context) {
+		fmt.Println("Searching......")
 		for _, sub := range subsDir {
-			if sub.IsDir() {
-				m.fileSearch(filepath.Join(home, "go-concurrent", sub.Name()), resultChannel, filename)
+			select {
+			case <-ctx.Done():
+				fmt.Println("Task is canceled")
+				return
+			default:
+				// Simulate work
+				if sub.IsDir() {
+					m.fileSearch(filepath.Join(home, "go-concurrent", sub.Name()), resultChannel, filename)
+				}
 			}
 		}
 		//signal the channel the sending data is done
 		close(resultChannel)
-	}()
+	}(ctx)
+	// Cancel the task after 2 seconds
+	time.Sleep(1 * time.Second)
+	cancel()
 
 	//view results
-	go m.view(resultChannel)
+	go m.view(resultChannel, ctx)
+
+	//time for printing result
+	time.Sleep(1 * time.Second)
+	cancel()
+	
 }
 
 func (m model) getinput() (filename string, err error) {
@@ -97,10 +117,25 @@ func (m model) getinput() (filename string, err error) {
 	return input, err
 }
 
-func (m model) view(resultChannel <-chan string) {
-	for result := range resultChannel {
-		fmt.Println(result)
+func (m model) view(resultChannel <-chan string, ctx context.Context) {
+	
+	select {
+		case <-resultChannel:
+			for result := range resultChannel {
+			fmt.Println(result)
+			}
+
+		case <-ctx.Done():
+			fmt.Println("Task is canceled")
+			return
+
+		default:
+			fmt.Println("Channel is empty, no value to receive")
 	}
+	
+	//I need to print out if ch is empty
+	//know if channel needs to be looped or not
+	
 }
 
 func main() {
@@ -115,12 +150,7 @@ func main() {
 	// Concurrent File Search
 	m.fileSearcher(filename)
 
-	time.Sleep(3 * time.Second)
-
 }
-
-// to Add Buffer Channel
-//Each Goroutine should traverse a directory and its subdirectories,
 
 /* Concurrent File Searcher with Context
 
