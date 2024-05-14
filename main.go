@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +15,7 @@ func (m model) getHome() string {
 	//this will determine the path of read
 	home, err := os.UserHomeDir()
 	if err != nil {
-		panic(err)
+		log.Printf("Failed to read directory %s: %v", home, err)
 	}
 
 	//get Main Directory
@@ -33,66 +34,63 @@ func (m model) viewer(filesChan <-chan string, ctx context.Context) {
 		//check if there is still item in channel
 		case val, ok := <-filesChan:
 			if !ok {
-				fmt.Println("No more file found")
 				return
-			} else {
-				fmt.Println(val)
 			}
+			fmt.Println(val)
 		}
 	}
-
 
 }
 
 func (m model) files(subDir <-chan string, input string) <-chan string {
-	out := make(chan string)
+	out := make(chan string, 10) // Buffered channel to limit concurrent file searches
 
 	go func() {
+		defer close(out)
 		for s := range subDir {
 			// Open the subDirectory
-			d, err := os.Open(s)
+			folder, err := os.Open(s)
 			if err != nil {
-				fmt.Println(err)
+				log.Printf("Failed to open directory %s: %v", s, err)
+				return
 			}
-			defer d.Close()
+			defer folder.Close()
 
 			// Read the directory contents
-			files, err := d.Readdir(-1)
+			files, err := folder.Readdir(-1)
 			if err != nil {
-				fmt.Println(err)
+				log.Printf("Failed to read directory %s: %v", s, err)
+				return
 			}
-
 			// Send each file name through the channel
 			for _, file := range files {
 				// Check if the file is a regular file
-				if file.Mode().IsRegular() {
-					if strings.ToUpper(file.Name()) == input {
-						out <- "Dir of:" + s + "\n" + "Items Found: " + file.Name()
-					}
+				if file.Mode().IsRegular() && strings.ToUpper(file.Name()) == input {
+					out <- fmt.Sprintf("Dir of: %s\nItems Found: %s", s, file.Name())
 				}
 			}
 		}
-		close(out)
 	}()
 
 	return out
 }
 
 func (m model) subDir(mainDir string) <-chan string {
-	out := make(chan string)
+	out := make(chan string, 10) // Buffered channel to limit concurrent subdirectory searches
 
 	go func() {
+		defer close(out)
 		// Open the directory
 		d, err := os.Open(mainDir)
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
 		}
 		defer d.Close()
 
 		// Read the directory contents
 		infos, err := d.Readdir(-1)
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
 		}
 		for _, sub := range infos {
 			//check if the sub is a directory
@@ -100,14 +98,12 @@ func (m model) subDir(mainDir string) <-chan string {
 				out <- filepath.Join(mainDir, sub.Name())
 			}
 		}
-		close(out)
 	}()
-
 	return out
 }
 
 func (m model) fileSearcher(filename string) {
-
+	
 	// Create a context with cancellation capability
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() //to endure cancel() if main exits
@@ -128,15 +124,13 @@ func (m model) fileSearcher(filename string) {
 
 func (m model) getinput() (filename string, err error) {
 	var input string
-
 	fmt.Println("Enter filename:")
 	_, err = fmt.Scanln(&input)
-	input = strings.ToUpper(input)
 	if err != nil {
-		return
+		return "", err
 	}
 
-	return input, err
+	return strings.ToUpper(input), nil
 }
 
 func main() {
@@ -146,16 +140,18 @@ func main() {
 	//input Handling
 	filename, err := m.getinput()
 	if err != nil {
-		panic("Error in input")
+		log.Fatalf("Error in input: %v", err)
 	}
+	fmt.Println("Searching........................................")
 	// Concurrent File Search
 	m.fileSearcher(filename)
 
+	fmt.Println("Search completed---------------------------------")
+
 }
 
-//review Buffered channels if possible to implement
-//Mutex: Use a mutex to protect shared data structures, such as a map or slice used to store search results.
-
+// check if channel is empty printout no item found
+// Feature of All directories in system
 
 /* Concurrent File Searcher with Context
 
@@ -177,5 +173,3 @@ Output Display: Once all file searches are complete, display the search results 
 
 By working on this project, you'll get hands-on experience with concurrent programming concepts in Go, including Goroutines, channels, buffer, select, mutex, and context. You'll also gain practical experience in building concurrent applications that can efficiently handle concurrent tasks and gracefully handle timeouts or cancellations.
 */
-
-
