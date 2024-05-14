@@ -17,3 +17,6 @@ Mutex: Use a mutex to protect shared data structures, such as a map or slice use
 Output Display: Once all file searches are complete, display the search results to the user in a clear and organized manner. This could include printing the paths of matching files, along with any additional information (e.g., file size, last modified timestamp).
 
 hands-on experience with concurrent programming concepts in Go, including Goroutines, channels, buffer, select, mutex, and context. You'll also gain practical experience in building concurrent applications that can efficiently handle concurrent tasks and gracefully handle timeouts or cancellations.
+
+
+additional notes: In Go, you typically don't use a sync.Mutex to protect access to channels. Channels themselves are designed to be safe for concurrent use, meaning you can safely send and receive values from multiple Goroutines without additional synchronization. However, there are scenarios where you might want to ensure certain operations on channels are synchronized, but in most cases, using a sync.Mutex for channels is unnecessary and can lead to more complex and error-prone code.
