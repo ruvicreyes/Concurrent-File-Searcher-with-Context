@@ -60,6 +60,7 @@ func (m model) fileSearcher(filename string) {
 
 	// Create a context with cancellation capability
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	//Create a channel for list of files
 	resultChannel := make(chan string, 3)
@@ -91,17 +92,16 @@ func (m model) fileSearcher(filename string) {
 		//signal the channel the sending data is done
 		close(resultChannel)
 	}(ctx)
-	// Cancel the task after 2 seconds
-	time.Sleep(1 * time.Second)
-	cancel()
-
-	//view results
-	go m.view(resultChannel, ctx)
 
 	//time for printing result
 	time.Sleep(1 * time.Second)
-	cancel()
-	
+
+	//view results
+	m.view(resultChannel, ctx)
+
+	//time for printing result
+	time.Sleep(1 * time.Second)
+
 }
 
 func (m model) getinput() (filename string, err error) {
@@ -118,12 +118,14 @@ func (m model) getinput() (filename string, err error) {
 }
 
 func (m model) view(resultChannel <-chan string, ctx context.Context) {
-	
-	select {
-		case <-resultChannel:
-			for result := range resultChannel {
-			fmt.Println(result)
+	for {
+		select {
+		case val, ok := <-resultChannel:
+			if !ok {
+				fmt.Println("Channel closed, exiting")
+				return
 			}
+			fmt.Println("Received value:", val)
 
 		case <-ctx.Done():
 			fmt.Println("Task is canceled")
@@ -131,11 +133,11 @@ func (m model) view(resultChannel <-chan string, ctx context.Context) {
 
 		default:
 			fmt.Println("Channel is empty, no value to receive")
+		}
 	}
-	
+
 	//I need to print out if ch is empty
 	//know if channel needs to be looped or not
-	
 }
 
 func main() {
