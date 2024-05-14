@@ -103,7 +103,7 @@ func (m model) subDir(mainDir string) <-chan string {
 }
 
 func (m model) fileSearcher(filename string) {
-	
+
 	// Create a context with cancellation capability
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() //to endure cancel() if main exits
@@ -150,6 +150,7 @@ func main() {
 
 }
 
+//Context in file search: if the user decides to cancel the search or if a timeout occurs, the program should stop searching for files and return the results found so far.
 // check if channel is empty printout no item found
 // Feature of All directories in system
 
