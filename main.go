@@ -18,9 +18,9 @@ func (m model) getHome() string {
 	if err != nil {
 		log.Printf("Failed to read directory %s: %v", home, err)
 	}
-	//fmt.Println(home)
+	fmt.Println(home)
 	//get Main Directory
-	main := filepath.Join(home, "go-concurrent")
+	main := filepath.Join(home)
 
 	return main
 }
@@ -75,51 +75,59 @@ func (m model) files(subDir <-chan string, input string,  ctx context.Context) <
 	return out
 }
 
-func (m model) subDir(mainDir string) <-chan string {
-	out := make(chan string, 10) // Buffered channel to limit concurrent subdirectory searches
-
-	go func() {
-		defer close(out)
-		// Open the directory
-		d, err := os.Open(mainDir)
-		if err != nil {
-			fmt.Println(err)
-		}
-		defer d.Close()
-
+func (m model) subDir(mainDir string, subDirChan chan<- string) {
+	
 		// Read the directory contents
-		infos, err := d.Readdir(-1)
+		entries, err := os.ReadDir(mainDir)
 		if err != nil {
 			fmt.Println(err)
 		}
-		for _, sub := range infos {
-			//check if the sub is a directory
-			if sub.IsDir() {
-				out <- filepath.Join(mainDir, sub.Name())
+
+		for _, entry := range entries {
+			path := filepath.Join(mainDir, entry.Name())
+			if entry.IsDir() {
+				subDirChan <- path // Send the subdirectory to the channel
+	
+				go func(p string) {
+					m.subDir(p, subDirChan)
+				}(path)
+			} else {
+				fmt.Println("File:", path)
 			}
 		}
-	}()
-	return out
+				//out <- filepath.Join(mainDir, sub.Name())
+	
 }
 
 func (m model) fileSearcher(filename string) {
 
 	// Create a context with cancellation capability
-	ctx, cancel := context.WithCancel(context.Background())
+	//ctx, cancel := context.WithCancel(context.Background())
 
 	//get mainDir
 	main := m.getHome()
+	subDirChan := make(chan string, 10) // Buffered channel to limit concurrent subdirectory searches
+	
 
 	//get subdirectories
-	subsDirChannel := m.subDir(main)
+	go m.subDir(main, subDirChan)
+	time.Sleep(5 * time.Second)
+	close(subDirChan)
+
+	for dir := range subDirChan {
+		fmt.Println("Directory:", dir)
+	}
+
+
+	//it didnt go too Go-Concurrent folder
 
 	//Create a channel for list of files
-	filesChannel := m.files(subsDirChannel, filename, ctx)
-	time.Sleep(2 * time.Second)
-	cancel() // after 2  seconds cancel the context
+	// filesChannel := m.files(subsDirChannel, filename, ctx)
+	// time.Sleep(2 * time.Second)
+	// cancel() // after 2  seconds cancel the context
 
-	//view Files
-	m.viewer(filesChannel)
+	// //view Files
+	// m.viewer(filesChannel)
 
 }
 
@@ -152,7 +160,7 @@ func main() {
 }
 
 //Context in file search: if the user decides to cancel the search or if a timeout occurs, the program should stop searching for files and return the results found so far.
-// Feature of All directories in system
+// Feature of All directories in system using Recursive loop
 
 /* Concurrent File Searcher with Context
 
