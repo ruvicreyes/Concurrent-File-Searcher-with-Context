@@ -93,12 +93,12 @@ func (m model) subDir(mainDir string, subDirChan chan<- string, wg *sync.WaitGro
 				defer wg.Done()
 				m.subDir(p, subDirChan, wg)
 			}(path)
-
-		} 
+		}
+	}
 		// else {
 		// 	fmt.Println("File:", path)
 		// }
-	}
+	
 	//out <- filepath.Join(mainDir, sub.Name())
 
 }
