@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
+	"sync"
 )
 
 type model struct{}
@@ -36,67 +36,71 @@ func (m model) viewer(filesChan <-chan string) {
 	}
 }
 
-func (m model) files(subDir <-chan string, input string,  ctx context.Context) <-chan string {
+func (m model) files(subDir <-chan string, input string, ctx context.Context) <-chan string {
 	out := make(chan string, 10) // Buffered channel to limit concurrent file searches
 
 	go func() {
 		select {
-			case <-ctx.Done():
-				fmt.Println("Context canceled, exiting")
-				return
-			default:
-				defer close(out)
-				for s := range subDir {
-					// Open the subDirectory
-					folder, err := os.Open(s)
-					if err != nil {
-						log.Printf("Failed to open directory %s: %v", s, err)
-						return
-					}
-					defer folder.Close()
+		case <-ctx.Done():
+			fmt.Println("Context canceled, exiting")
+			return
+		default:
+			defer close(out)
+			for s := range subDir {
+				// Open the subDirectory
+				folder, err := os.Open(s)
+				if err != nil {
+					log.Printf("Failed to open directory %s: %v", s, err)
+					return
+				}
+				defer folder.Close()
 
-					// Read the directory contents
-					files, err := folder.Readdir(-1)
-					if err != nil {
-						log.Printf("Failed to read directory %s: %v", s, err)
-						return
-					}
-					// Send each file name through the channel
-					for _, file := range files {
-						// Check if the file is a regular file
-						if file.Mode().IsRegular() && strings.ToUpper(file.Name()) == input {
-							out <- fmt.Sprintf("Dir of: %s\nItems Found: %s", s, file.Name())
-						}
+				// Read the directory contents
+				files, err := folder.Readdir(-1)
+				if err != nil {
+					log.Printf("Failed to read directory %s: %v", s, err)
+					return
+				}
+				// Send each file name through the channel
+				for _, file := range files {
+					// Check if the file is a regular file
+					if file.Mode().IsRegular() && strings.ToUpper(file.Name()) == input {
+						out <- fmt.Sprintf("Dir of: %s\nItems Found: %s", s, file.Name())
 					}
 				}
+			}
 		}
 	}()
 
 	return out
 }
 
-func (m model) subDir(mainDir string, subDirChan chan<- string) {
-	
-		// Read the directory contents
-		entries, err := os.ReadDir(mainDir)
-		if err != nil {
-			fmt.Println(err)
-		}
+func (m model) subDir(mainDir string, subDirChan chan<- string, wg *sync.WaitGroup) {
+	// Read the directory contents
+	entries, err := os.ReadDir(mainDir)
+	if err != nil {
+		fmt.Println(err)
+	}
 
-		for _, entry := range entries {
-			path := filepath.Join(mainDir, entry.Name())
-			if entry.IsDir() {
-				subDirChan <- path // Send the subdirectory to the channel
-	
-				go func(p string) {
-					m.subDir(p, subDirChan)
-				}(path)
-			} else {
-				fmt.Println("File:", path)
-			}
-		}
-				//out <- filepath.Join(mainDir, sub.Name())
-	
+	for _, entry := range entries {
+		path := filepath.Join(mainDir, entry.Name())
+		if entry.IsDir() {
+			subDirChan <- path // Send the subdirectory to the channel
+			fmt.Println("Directory:", path)
+
+			wg.Add(1)
+			go func(p string) {
+				defer wg.Done()
+				m.subDir(p, subDirChan, wg)
+			}(path)
+
+		} 
+		// else {
+		// 	fmt.Println("File:", path)
+		// }
+	}
+	//out <- filepath.Join(mainDir, sub.Name())
+
 }
 
 func (m model) fileSearcher(filename string) {
@@ -106,18 +110,26 @@ func (m model) fileSearcher(filename string) {
 
 	//get mainDir
 	main := m.getHome()
-	subDirChan := make(chan string, 10) // Buffered channel to limit concurrent subdirectory searches
-	
+
+	//subDirChan := make(chan string, 10) // Buffered channel to limit concurrent subdirectory searches
+	subDirChan := make(chan string) // Channel to store subdirectories
+	var wg sync.WaitGroup
 
 	//get subdirectories
-	go m.subDir(main, subDirChan)
-	time.Sleep(5 * time.Second)
-	close(subDirChan)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		m.subDir(main, subDirChan, &wg)
+	}()
+	// Start a goroutine to close the channel once all directories are processed
+	go func() {
+		wg.Wait()
+		close(subDirChan)
+	}()
 
 	for dir := range subDirChan {
 		fmt.Println("Directory:", dir)
 	}
-
 
 	//it didnt go too Go-Concurrent folder
 
