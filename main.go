@@ -36,39 +36,34 @@ func (m model) viewer(filesChan <-chan string) {
 	}
 }
 
-func (m model) files(subDir <-chan string, input string, ctx context.Context) <-chan string {
-	out := make(chan string, 10) // Buffered channel to limit concurrent file searches
+func (m model) files(subDir <-chan string, filesChan chan<- string, input string, ctx context.Context) {
 
-	go func() {
+	for s := range subDir {
 		select {
-			case <-ctx.Done():
-				fmt.Println("Context canceled, exiting")
-				return
+		case <-ctx.Done():
+			fmt.Println("Context canceled, exiting")
+			return
 		default:
-			defer close(out) // if function ends close the channel
-			for s := range subDir {
-				// Read the directory contents
-				files, err := os.ReadDir(s)
-				if err != nil {
-					log.Printf("Failed to read directory %s: %v", s, err)
-					return
-				}
-				// Send each file name through the channel
-				for _, file := range files {
-					// Check if the file is a regular file
-					if file.Type().IsRegular() && strings.ToUpper(file.Name()) == input {
-						out <- fmt.Sprintf("Dir of: %s\nItems Found: %s", s, file.Name())
-					}
+			// Read the directory contents
+			files, err := os.ReadDir(s)
+			if err != nil {
+				log.Printf("Failed to read directory %s: %v", s, err)
+				return
+			}
+			// Send each file name through the channel
+			for _, file := range files {
+				// Check if the file is a regular file
+				if file.Type().IsRegular() && strings.ToUpper(file.Name()) == input {
+					filesChan <- fmt.Sprintf("Dir of: %s\nItems Found: %s", s, file.Name())
 				}
 			}
 		}
-	}()
 
-	return out
+	}
+
 }
 
 func (m model) subDir(dir string, subDirChan chan<- string, wg *sync.WaitGroup) {
-
 	// Read the directory contents
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -93,43 +88,43 @@ func (m model) subDir(dir string, subDirChan chan<- string, wg *sync.WaitGroup) 
 		}
 	}
 
-	//out <- filepath.Join(mainDir, sub.Name())
-
 }
 
 func (m model) fileSearcher(filename string) {
-
 	// Create a context with cancellation capability
 	ctx, cancel := context.WithCancel(context.Background())
 
 	//get mainDir
 	main := m.getHome()
 
-	//subDirChan := make(chan string, 10) // Buffered channel to limit concurrent subdirectory searches
-	subDirChan := make(chan string, 10) // Channel to store subdirectories
+	subDirChan := make(chan string, 10)   // Channel to store subdirectories
+	filesChannel := make(chan string, 10) // Buffered channel to limit concurrent file searches
 	var wg sync.WaitGroup
 
-	// Start a goroutine to close the channel once all directories are processed
+	// Start a goroutine to search all directories with waitgroup/worker
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		m.subDir(main, subDirChan, &wg)
 	}()
 
-	//Create a channel for list of files
-	filesChannel := m.files(subDirChan, filename, ctx)
-	// Start a goroutine to close the channel once all directories are processed
+	// Start a goroutine to search all files with waitgroup/worker
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		m.files(subDirChan, filesChannel, filename, ctx)
+	}()
+
+	// close the channel once all directories are processed
 	go func() {
 		wg.Wait()
 		close(subDirChan)
 	}()
 
-	// for dir := range subDirChan {
-	// 	fmt.Println("Directory:", dir)
-	// }
-
+	// Simulate a cancellation after 2 seconds
 	time.Sleep(2 * time.Second)
-	cancel() // after 2  seconds cancel the context
+	close(filesChannel)
+	cancel()
 
 	// //view Files
 	m.viewer(filesChannel)
