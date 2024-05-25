@@ -64,6 +64,7 @@ func (m model) files(subDir <-chan string, filesChan chan<- string, input string
 }
 
 func (m model) subDir(dir string, subDirChan chan<- string, wg *sync.WaitGroup) {
+
 	// Read the directory contents
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -93,6 +94,7 @@ func (m model) subDir(dir string, subDirChan chan<- string, wg *sync.WaitGroup) 
 func (m model) fileSearcher(filename string) {
 	// Create a context with cancellation capability
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	//get mainDir
 	main := m.getHome()
@@ -115,7 +117,7 @@ func (m model) fileSearcher(filename string) {
 		m.files(subDirChan, filesChannel, filename, ctx)
 	}()
 
-	// close the channel once all directories are processed
+	// Start a goroutine to close the channel once all directories are processed
 	go func() {
 		wg.Wait()
 		close(subDirChan)
@@ -124,7 +126,6 @@ func (m model) fileSearcher(filename string) {
 	// Simulate a cancellation after 2 seconds
 	time.Sleep(2 * time.Second)
 	close(filesChannel)
-	cancel()
 
 	// //view Files
 	m.viewer(filesChannel)
@@ -159,8 +160,8 @@ func main() {
 
 }
 
+// Problem with searching Readme.md
 //Context in file search: if the user decides to cancel the search or if a timeout occurs, the program should stop searching for files and return the results found so far.
-// Feature of All directories in system using Recursive loop
 
 /* Concurrent File Searcher with Context
 
