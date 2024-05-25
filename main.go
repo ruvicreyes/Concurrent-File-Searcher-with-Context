@@ -30,6 +30,7 @@ func (m model) viewer(filesChan <-chan string) {
 		fmt.Println("No files found")
 		return
 	} else {
+		fmt.Println("All Files are: ", len(filesChan))
 		for val := range filesChan {
 			fmt.Println(val)
 		}
@@ -37,7 +38,7 @@ func (m model) viewer(filesChan <-chan string) {
 }
 
 func (m model) files(subDir <-chan string, filesChan chan<- string, input string, ctx context.Context) {
-
+	defer wg.Done()
 	for s := range subDir {
 		select {
 		case <-ctx.Done():
@@ -60,36 +61,33 @@ func (m model) files(subDir <-chan string, filesChan chan<- string, input string
 		}
 
 	}
+	
 
 }
 
-func (m model) subDir(dir string, subDirChan chan<- string, wg *sync.WaitGroup) {
-
+func (m model) subDir(dir string, subDirChan chan string) {
+	defer wg.Done()
 	// Read the directory contents
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		fmt.Println(err)
 	}
-
 	for _, entry := range entries {
 		path := filepath.Join(dir, entry.Name())
 
 		if entry.IsDir() {
-
 			subDirChan <- path // Send the subdirectory to the channel
-
-			//fmt.Println(path)
 			wg.Add(1)
-			go func(p string) {
-				defer wg.Done()
-				m.subDir(p, subDirChan, wg)
-			}(path)
-			// } else {
-			//  	fmt.Println("File:", path)
-		}
-	}
+			go m.subDir(path, subDirChan)
 
+			// 	} else {
+			// 	 	fmt.Println("File:", path)
+		}
+
+	}
 }
+
+var wg sync.WaitGroup
 
 func (m model) fileSearcher(filename string) {
 	// Create a context with cancellation capability
@@ -101,35 +99,28 @@ func (m model) fileSearcher(filename string) {
 
 	subDirChan := make(chan string, 10)   // Channel to store subdirectories
 	filesChannel := make(chan string, 10) // Buffered channel to limit concurrent file searches
-	var wg sync.WaitGroup
 
 	// Start a goroutine to search all directories with waitgroup/worker
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		m.subDir(main, subDirChan, &wg)
+		m.subDir(main, subDirChan)
 	}()
 
-	// Start a goroutine to search all files with waitgroup/worker
-	wg.Add(1)
+	wg.Add(1) // Start a goroutine to search all files with waitgroup/worker
 	go func() {
-		defer wg.Done()
+		defer close(filesChannel)
 		m.files(subDirChan, filesChannel, filename, ctx)
 	}()
+	time.Sleep(time.Second )
+	//view Files
+	go m.viewer(filesChannel)
 
-	// Start a goroutine to close the channel once all directories are processed
 	go func() {
 		wg.Wait()
 		close(subDirChan)
+		cancel()
 	}()
-
-	// Simulate a cancellation after 2 seconds
-	time.Sleep(2 * time.Second)
-	close(filesChannel)
-
-	// //view Files
-	m.viewer(filesChannel)
-
+	time.Sleep(time.Second)
 }
 
 func (m model) getinput() (filename string, err error) {
