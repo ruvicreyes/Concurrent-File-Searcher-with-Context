@@ -30,7 +30,6 @@ func (m model) viewer(filesChan <-chan string) {
 		fmt.Println("No files found")
 		return
 	} else {
-		fmt.Println("All Files are: ", len(filesChan))
 		for val := range filesChan {
 			fmt.Println(val)
 		}
@@ -55,13 +54,12 @@ func (m model) files(subDir <-chan string, filesChan chan<- string, input string
 			for _, file := range files {
 				// Check if the file is a regular file
 				if file.Type().IsRegular() && strings.ToUpper(file.Name()) == input {
-					filesChan <- fmt.Sprintf("Dir of: %s\nItems Found: %s", s, file.Name())
+					filesChan <- fmt.Sprintf("Dir of: %s\nItem Found: %s", s, file.Name())
 				}
 			}
 		}
 
 	}
-	
 
 }
 
@@ -111,7 +109,7 @@ func (m model) fileSearcher(filename string) {
 		defer close(filesChannel)
 		m.files(subDirChan, filesChannel, filename, ctx)
 	}()
-	time.Sleep(time.Second )
+	time.Sleep(time.Second)
 	//view Files
 	go m.viewer(filesChannel)
 
@@ -120,7 +118,7 @@ func (m model) fileSearcher(filename string) {
 		close(subDirChan)
 		cancel()
 	}()
-	time.Sleep(time.Second)
+	time.Sleep(time.Second * 2)
 }
 
 func (m model) getinput() (filename string, err error) {
